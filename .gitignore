@@ -7,3 +7,15 @@ web/node_modules/
 web/dist/
 *.test
 coverage.out
+
+# local config and runtime data
+merchants.json
+data/
+*.key
+
+# built binaries
+/leash
+/leash.exe
+
+# dashboard end-to-end test dependencies
+web/e2e/node_modules/
