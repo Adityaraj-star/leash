@@ -126,6 +126,12 @@ type Config struct {
 	EnrollSecret string
 	// SessionTTL is how long an issued session stays valid (default 1h).
 	SessionTTL time.Duration
+	// TaintWindow closes the "open a new session" loophole. When any session reads
+	// a page with a serious injection attempt, every payment in the next
+	// TaintWindow needs the user's approval, whichever session it comes from. An
+	// agent that has been steered cannot get a clean slate by starting over. Zero
+	// turns it off.
+	TaintWindow time.Duration
 
 	// BrowseHosts is the allow-list of host[:port] values leash.browse may
 	// fetch. Empty means browsing is disabled (SSRF-safe default).
@@ -153,6 +159,7 @@ type Plane struct {
 	mandates map[string]*regMandate
 	revoked  map[string]bool
 	sessions map[string]time.Time // issued session -> expiry
+	tainted  time.Time            // payments need the user's approval until this moment
 	userMsgs map[string]userMsg   // session -> the user's own words (set by the user side only)
 }
 
@@ -337,6 +344,16 @@ func (p *Plane) recover() error {
 			if json.Unmarshal([]byte(e.Payload), &v) == nil && v.MandateID != "" {
 				p.revoked[v.MandateID] = true
 			}
+		case "taint.raised":
+			// A restart must not wipe the window: the agent was steered minutes ago.
+			var v struct {
+				Until string `json:"until"`
+			}
+			if json.Unmarshal([]byte(e.Payload), &v) == nil {
+				if t, err := time.Parse(time.RFC3339, v.Until); err == nil && t.After(p.tainted) {
+					p.tainted = t
+				}
+			}
 		}
 	}
 	return nil
@@ -357,10 +374,44 @@ func (p *Plane) Enroll(pub []byte) (keyID string, err error) {
 // EnrollWithSecret is Enroll for a server that must not let just anyone pin the
 // first key: the caller proves it knows Config.EnrollSecret (set at deploy time).
 func (p *Plane) EnrollWithSecret(pub []byte, secret string) (string, error) {
-	if p.cfg.EnrollSecret == "" || subtle.ConstantTimeCompare([]byte(secret), []byte(p.cfg.EnrollSecret)) != 1 {
+	if p.cfg.EnrollSecret == "" {
+		if p.cfg.Strict {
+			return "", ErrUnauthorized
+		}
+		return p.enroll(pub) // no secret configured and not strict: tests and the offline demo
+	}
+	if subtle.ConstantTimeCompare([]byte(secret), []byte(p.cfg.EnrollSecret)) != 1 {
 		return "", ErrUnauthorized
 	}
 	return p.enroll(pub)
+}
+
+// Strict reports whether the plane was started with Config.Strict.
+func (p *Plane) Strict() bool { return p.cfg.Strict }
+
+// raiseTaint starts (or extends) the taint window after a serious injection attempt.
+func (p *Plane) raiseTaint(url string) {
+	until := p.now().Add(p.cfg.TaintWindow)
+	p.mu.Lock()
+	if until.After(p.tainted) {
+		p.tainted = until
+	}
+	p.mu.Unlock()
+	_ = p.record("taint.raised", map[string]any{"url": url, "until": until.UTC().Format(time.RFC3339)})
+}
+
+func (p *Plane) taintUntil() time.Time {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.tainted
+}
+
+// TaintedUntil is when the current taint window ends; the zero time means none.
+func (p *Plane) TaintedUntil() time.Time {
+	if t := p.taintUntil(); p.now().Before(t) {
+		return t
+	}
+	return time.Time{}
 }
 
 func (p *Plane) enroll(pub []byte) (keyID string, err error) {
@@ -705,6 +756,9 @@ func (p *Plane) Browse(ctx context.Context, session, rawURL string) (BrowseResul
 	ct := strings.ToLower(resp.Header.Get("Content-Type"))
 	isHTML := strings.Contains(ct, "html") || (ct == "" && strings.Contains(strings.ToLower(text[:min(len(text), 512)]), "<"))
 	ev := p.prov.Add(session, u.String(), text, isHTML)
+	if p.cfg.TaintWindow > 0 && ev.Severity >= policy.SeverityHigh {
+		p.raiseTaint(ev.URL)
+	}
 	if err := p.record("browse", map[string]any{
 		"session": session, "url": ev.URL, "evidence_id": ev.ID, "sha256": ev.SHA256,
 		"trust": ev.Trust, "severity": ev.Severity, "hidden_text": len(ev.Hidden) > 0,
@@ -914,6 +968,12 @@ func (p *Plane) RequestPayment(ctx context.Context, req PaymentRequest) (Outcome
 		Mandate: reg.m, UserMessage: userMessage, MerchantIDs: ids, Claim: claim,
 		Quote: quote, Refs: req.EvidenceRefs, Store: p.prov, Session: req.Session,
 	})
+	if until := p.taintUntil(); p.now().Before(until) && pv.Injection < policy.SeverityMedium {
+		// Another session read planted instructions moments ago. Whatever this
+		// session looks like, a human confirms before any money is held.
+		pv.Injection = policy.SeverityMedium
+		pv.Notes = append([]string{"a page with planted instructions was read recently (by this or another session), so a person must confirm"}, pv.Notes...)
+	}
 	if err := p.record("provenance.checked", map[string]any{
 		"request_id": r.ID, "evaluated": pv.Evaluated, "merchant_origin": pv.MerchantOrigin,
 		"amount_origin": pv.AmountOrigin, "items_origin": pv.ItemsOrigin, "injection": pv.Injection,
@@ -1206,6 +1266,8 @@ func (p *Plane) RetrySettle(ctx context.Context, id string) (Outcome, error) {
 		return p.authorize(ctx, id)
 	case settlement.Delivered:
 		out, err = p.eng.SettleIfDue(ctx, id)
+	case settlement.CapturePending:
+		out, err = p.eng.CaptureUpdate(ctx, id)
 	case settlement.Captured:
 		out, err = p.eng.Payout(ctx, id)
 	case settlement.PayoutPending:
