@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leash</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232447F5'/%3E%3Cpath d='M9 22V10m0 12h9' stroke='white' stroke-width='3.2' stroke-linecap='round' fill='none'/%3E%3Ccircle cx='22' cy='22' r='2.4' fill='white'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="bar">
+  <div class="brand"><span class="mark" aria-hidden="true"></span><span class="name">Leash</span></div>
+  <div class="status" id="status" aria-live="polite">
+    <span class="pill" id="live" data-on="false">Connecting</span>
+    <span class="pill" id="chain">Chain not checked</span>
+    <span class="muted" id="keyid"></span>
+    <button class="link" id="signout" type="button">Sign out</button>
+  </div>
+</header>
+
+<div class="banner" id="taint" role="status" hidden></div>
+
+<main>
+  <section class="needs" aria-labelledby="needs-h">
+    <h2 id="needs-h">Needs you</h2>
+    <div id="needs-list"></div>
+  </section>
+
+  <section aria-labelledby="key-h">
+    <h2 id="key-h">Your signing key</h2>
+    <div id="key-panel" class="key-panel"></div>
+  </section>
+
+  <section aria-labelledby="mandates-h">
+    <div class="sec-head">
+      <h2 id="mandates-h">Mandates</h2>
+      <button class="btn primary small" id="new-mandate" type="button">New mandate</button>
+    </div>
+    <div id="mandates"></div>
+  </section>
+
+  <div class="split">
+    <section aria-labelledby="req-h" class="requests">
+      <h2 id="req-h">Requests</h2>
+      <div id="grid" class="ag-host"></div>
+    </section>
+
+    <aside class="tape" aria-labelledby="tape-h">
+      <div class="tape-head">
+        <h2 id="tape-h">Flight recorder</h2>
+        <button type="button" class="btn" id="verify">Verify chain</button>
+      </div>
+      <p class="tape-note" id="verify-note">Every decision is written to a signed, hash-linked log. Verify it to see that nothing was changed afterwards.</p>
+      <ol id="tape-list" class="tape-list"></ol>
+    </aside>
+  </div>
+</main>
+
+<div class="drawer" id="drawer" hidden>
+  <div class="drawer-scrim" id="drawer-scrim"></div>
+  <div class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="drawer-title" tabindex="-1">
+    <button class="btn ghost close" id="drawer-close" type="button">Close</button>
+    <div id="drawer-body"></div>
+  </div>
+</div>
+
+<dialog id="login">
+  <form method="dialog" id="login-form">
+    <h2>Sign in to Leash</h2>
+    <p>Enter the operator token printed when the server started.</p>
+    <label for="token">Operator token</label>
+    <input id="token" name="token" type="password" autocomplete="off" required>
+    <p class="error" id="login-error" role="alert"></p>
+    <button class="btn primary" type="submit">Sign in</button>
+  </form>
+</dialog>
+
+<dialog id="mandate-dlg" class="wide">
+  <form id="mandate-form" novalidate>
+    <h2>New mandate</h2>
+    <p>A mandate is the spending limit you sign for your agent. Leash refuses anything outside it. Your browser signs it with your key; the key never leaves this browser.</p>
+    <label for="m-intent">What may the agent buy?</label>
+    <input id="m-intent" name="intent" type="text" maxlength="300" placeholder="Birthday gift for my sister, under $40" required>
+    <div class="grid2">
+      <div><label for="m-max">Total limit</label><input id="m-max" name="max" inputmode="decimal" placeholder="40.00" required></div>
+      <div><label for="m-cur">Currency</label><select id="m-cur" name="cur"></select></div>
+      <div><label for="m-per">Per purchase (optional)</label><input id="m-per" name="per" inputmode="decimal" placeholder="same as total"></div>
+      <div><label for="m-step">I approve anything over (optional)</label><input id="m-step" name="step" inputmode="decimal" placeholder="25.00"></div>
+    </div>
+    <label for="m-merchants">Merchants the agent may pay (comma separated)</label>
+    <input id="m-merchants" name="merchants" type="text" placeholder="legitgifts" required>
+    <label for="m-cats">Categories (optional, comma separated)</label>
+    <input id="m-cats" name="cats" type="text" placeholder="gifts">
+    <div class="grid2">
+      <div><label for="m-exp">Lasts</label>
+        <select id="m-exp" name="exp"><option value="1">1 hour</option><option value="24">1 day</option><option value="72" selected>3 days</option><option value="168">7 days</option><option value="720">30 days</option></select></div>
+      <div><label for="m-deliver">Delivery needed by (optional)</label><input id="m-deliver" name="deliver" type="date"></div>
+    </div>
+    <label class="check"><input id="m-return" type="checkbox" checked> Only merchants with a return policy</label>
+    <label class="check"><input id="m-single" type="checkbox"> Single use (one purchase, then it is spent)</label>
+    <p class="error" id="m-error" role="alert"></p>
+    <div class="row-end">
+      <button class="btn ghost" type="button" id="m-cancel">Cancel</button>
+      <button class="btn primary" type="submit" id="m-sign">Sign and register</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="confirm">
+  <form method="dialog" id="confirm-form">
+    <h2 id="confirm-title"></h2>
+    <p id="confirm-text"></p>
+    <div class="row-end">
+      <button class="btn ghost" value="cancel" type="submit">Keep it</button>
+      <button class="btn danger" value="ok" id="confirm-ok" type="submit"></button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="vendor/ag-grid-community.min.js"></script>
+<script src="sign.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
