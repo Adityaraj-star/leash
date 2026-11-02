@@ -58,6 +58,7 @@ type capture struct {
 	AuthID   string
 	Amount   money.Amount
 	Refunded int64
+	Status   string // COMPLETED unless the server is told otherwise
 }
 
 // Payout records one paid-out item.
@@ -96,6 +97,8 @@ type Server struct {
 	HoldDays int
 	// WebhookOK is the result returned by webhook signature verification.
 	WebhookOK bool
+	// PendingCaptures makes new captures report PENDING until SetCaptureStatus changes them.
+	PendingCaptures bool
 
 	srv *httptest.Server
 }
@@ -332,6 +335,8 @@ func (s *Server) route(w http.ResponseWriter, r *http.Request) {
 		default:
 			apiErr(w, http.StatusNotFound, "RESOURCE_NOT_FOUND", "unknown authorization endpoint")
 		}
+	case r.Method == http.MethodGet && strings.HasPrefix(p, "/v2/payments/captures/") && !strings.Contains(strings.TrimPrefix(p, "/v2/payments/captures/"), "/"):
+		s.getCapture(w, strings.TrimPrefix(p, "/v2/payments/captures/"))
 	case r.Method == http.MethodPost && strings.HasPrefix(p, "/v2/payments/captures/") && strings.HasSuffix(p, "/refund"):
 		id := strings.TrimSuffix(strings.TrimPrefix(p, "/v2/payments/captures/"), "/refund")
 		s.refund(w, r, id)
@@ -499,13 +504,40 @@ func (s *Server) capture(w http.ResponseWriter, r *http.Request, id string) {
 		// Final capture releases the remainder of the hold.
 		a.Amount.Minor = a.Captured
 	}
-	c := &capture{ID: s.nextID("CAP"), AuthID: a.ID, Amount: amt}
+	c := &capture{ID: s.nextID("CAP"), AuthID: a.ID, Amount: amt, Status: "COMPLETED"}
+	if s.PendingCaptures {
+		c.Status = "PENDING"
+	}
 	s.captures[c.ID] = c
 	a.CaptureIDs = append(a.CaptureIDs, c.ID)
 	writeJSON(w, http.StatusCreated, map[string]any{
-		"id": c.ID, "status": "COMPLETED", "amount": moneyJSON(amt), "final_capture": final || a.Captured >= a.Amount.Minor,
+		"id": c.ID, "status": c.Status, "amount": moneyJSON(amt), "final_capture": final || a.Captured >= a.Amount.Minor,
 		"create_time": s.now().UTC().Format(time.RFC3339),
 	})
+}
+
+func (s *Server) getCapture(w http.ResponseWriter, id string) {
+	c, ok := s.captures[id]
+	if !ok {
+		apiErr(w, http.StatusNotFound, "RESOURCE_NOT_FOUND", "capture not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"id": c.ID, "status": c.Status, "amount": moneyJSON(c.Amount), "final_capture": true,
+	})
+}
+
+// SetCaptureStatus changes what PayPal reports for a capture (tests): for example
+// PENDING -> COMPLETED, or DECLINED.
+func (s *Server) SetCaptureStatus(id, status string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, ok := s.captures[id]
+	if !ok {
+		return fmt.Errorf("no such capture %q", id)
+	}
+	c.Status = status
+	return nil
 }
 
 func (s *Server) void(w http.ResponseWriter, id string) {

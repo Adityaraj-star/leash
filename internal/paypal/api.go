@@ -242,6 +242,16 @@ func (c *Client) Void(ctx context.Context, authID, requestID string) error {
 	return c.do(ctx, http.MethodPost, "/v2/payments/authorizations/"+url.PathEscape(authID)+"/void", nil, nil, requestID)
 }
 
+// GetCapture fetches a capture. Its status moves from PENDING to COMPLETED or
+// DECLINED, so polling it needs no public webhook URL.
+func (c *Client) GetCapture(ctx context.Context, captureID string) (*Capture, error) {
+	var cp Capture
+	if err := c.do(ctx, http.MethodGet, "/v2/payments/captures/"+url.PathEscape(captureID), nil, &cp, ""); err != nil {
+		return nil, err
+	}
+	return &cp, nil
+}
+
 // RefundParams controls a refund. Amount nil refunds the full capture.
 type RefundParams struct {
 	Amount      *money.Amount
