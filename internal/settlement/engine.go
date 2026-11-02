@@ -26,6 +26,7 @@ type Gateway interface {
 	GetOrder(ctx context.Context, orderID string) (*paypal.Order, error)
 	AuthorizeOrder(ctx context.Context, orderID, requestID string) (*paypal.Order, error)
 	Capture(ctx context.Context, authID string, p paypal.CaptureParams) (*paypal.Capture, error)
+	GetCapture(ctx context.Context, captureID string) (*paypal.Capture, error)
 	Void(ctx context.Context, authID, requestID string) error
 	RefundCapture(ctx context.Context, captureID string, p paypal.RefundParams) (*paypal.Refund, error)
 	CreatePayout(ctx context.Context, p paypal.PayoutParams) (*paypal.PayoutBatch, error)
@@ -818,6 +819,49 @@ func (e *Engine) pollPayout(ctx context.Context, r *Request) error {
 	}
 }
 
+// pollCapture asks PayPal how a pending capture ended. The caller holds the
+// request's operation lock. COMPLETED moves on to CAPTURED; DECLINED or FAILED
+// returns to DELIVERED so the capture can be retried; PENDING changes nothing.
+func (e *Engine) pollCapture(ctx context.Context, r *Request) error {
+	e.mu.Lock()
+	st, capID := r.State, r.CaptureID
+	e.mu.Unlock()
+	if st != CapturePending {
+		return &StateError{ID: r.ID, Op: "check capture", State: st}
+	}
+	cp, err := e.cfg.Gateway.GetCapture(ctx, capID)
+	if err != nil {
+		return fmt.Errorf("get capture: %w", err)
+	}
+	switch status := strings.ToUpper(cp.Status); status {
+	case "COMPLETED":
+		return e.move(r, Captured, "PayPal confirmed the capture; funds captured from your PayPal.", map[string]any{"capture_id": capID}, true)
+	case "DECLINED", "FAILED":
+		_ = e.mutate(r, func() { r.CaptureID = ""; r.CaptureAttempts++ })
+		return e.move(r, Delivered, "PayPal declined the capture ("+status+"). It will be retried.", map[string]any{"capture_id": capID, "detail": status}, true)
+	default:
+		return nil
+	}
+}
+
+// CaptureUpdate re-checks a CAPTURE_PENDING request with PayPal and, once the
+// capture has completed, pays the merchant. Reconcile calls it; it can also be
+// called by hand.
+func (e *Engine) CaptureUpdate(ctx context.Context, id string) (*Request, error) {
+	defer e.op(id)()
+	r, err := e.lookup(id)
+	if err != nil {
+		return nil, err
+	}
+	if err := e.pollCapture(ctx, r); err != nil {
+		return nil, err
+	}
+	if e.state(r) == Captured {
+		return e.payout(ctx, id)
+	}
+	return e.snapshot(r), nil
+}
+
 // PayoutUpdate re-checks a PAYOUT_PENDING request with PayPal. Call it when a
 // PAYMENT.PAYOUTS-ITEM.* webhook arrives; Reconcile also calls it.
 func (e *Engine) PayoutUpdate(ctx context.Context, id string) (*Request, error) {
@@ -1070,6 +1114,7 @@ func (e *Engine) Sweep(ctx context.Context) ([]string, error) {
 //
 //	APPROVED         place the hold (an earlier call timed out or the process died)
 //	DELIVERED        capture and pay out once the inspection window has passed
+//	CAPTURE_PENDING  ask PayPal whether the capture finished, then pay out
 //	CAPTURED         pay the merchant (an earlier payout failed)
 //	PAYOUT_PENDING   ask PayPal whether the payout finished
 //
@@ -1100,6 +1145,10 @@ func (e *Engine) Reconcile(ctx context.Context) ([]string, error) {
 				_, err = e.authorize(ctx, id)
 			case Delivered:
 				_, err = e.settleIfDue(ctx, id)
+			case CapturePending:
+				if err = e.pollCapture(ctx, r); err == nil && e.state(r) == Captured {
+					_, err = e.payout(ctx, id)
+				}
 			case Captured:
 				_, err = e.payout(ctx, id)
 			case PayoutPending:
