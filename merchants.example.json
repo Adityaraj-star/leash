@@ -1,0 +1,13 @@
+[
+  {
+    "id": "legitgifts",
+    "name": "LegitGifts",
+    "email": "REPLACE-with-a-sandbox-business-account-email-that-is-NOT-your-app-owner",
+    "categories": ["gifts"],
+    "has_return_policy": true,
+    "aliases": ["LegitGifts"],
+    "delivery_secret": "REPLACE-with-a-long-random-string",
+    "quote_secret": "REPLACE-with-another-long-random-string-or-delete-this-line",
+    "base_url": "http://localhost:9001"
+  }
+]
