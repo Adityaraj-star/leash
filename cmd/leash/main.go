@@ -22,6 +22,11 @@ func main() {
 			fmt.Fprintln(os.Stderr, "serve:", err)
 			os.Exit(1)
 		}
+	case "doctor":
+		if err := runDoctor(os.Args[2:], os.Getenv, os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "doctor:", err)
+			os.Exit(1)
+		}
 	case "demo":
 		if err := runDemo(os.Stdout); err != nil {
 			fmt.Fprintln(os.Stderr, "demo failed:", err)

@@ -25,7 +25,9 @@ import (
 
 	"github.com/Adityaraj-star/leash/internal/api"
 	"github.com/Adityaraj-star/leash/internal/control"
+	"github.com/Adityaraj-star/leash/internal/judge"
 	"github.com/Adityaraj-star/leash/internal/ledger"
+	"github.com/Adityaraj-star/leash/internal/llm"
 	"github.com/Adityaraj-star/leash/internal/mandate"
 	"github.com/Adityaraj-star/leash/internal/mcp"
 	"github.com/Adityaraj-star/leash/internal/paypal"
@@ -242,6 +244,17 @@ func runServe(args []string, stdout, stderr io.Writer) error {
 		}
 	}
 
+	if os.Getenv("LEASH_JUDGE") != "off" {
+		// The judge can only make a decision stricter, and its spend is capped. The model
+		// comes from GROQ_API_KEY (free tier), ANTHROPIC_API_KEY or LEASH_LLM_* (see llm.FromEnv).
+		if mc, err := llm.FromEnv(os.Getenv, ""); err != nil {
+			logf("AI judge is off: %v (the rules still decide)", err)
+		} else if mc != nil {
+			mc.Budget = &llm.Budget{MaxCalls: 500, MaxInputTokens: 2_000_000, MaxOutputTokens: 100_000}
+			cfg.Judge = judge.NewLLM(mc)
+			logf("AI judge is on, using %s (it can only tighten decisions; at most 500 reviews per run)", mc.Describe())
+		}
+	}
 	plane, err := control.New(cfg)
 	if err != nil {
 		return err
