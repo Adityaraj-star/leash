@@ -178,6 +178,8 @@ func (s *Server) Handler() http.Handler {
 	// The merchant's own door: authenticated by the merchant's delivery secret, not
 	// by the operator token, and it can do exactly one thing.
 	mux.HandleFunc("POST /merchant/delivery", s.merchantDelivery)
+	mux.HandleFunc("GET /merchant/v1/orders", s.merchantOrders)
+	mux.HandleFunc("POST /merchant/v1/orders/{id}/delivery", s.merchantOrderDelivery)
 	for path, h := range s.Extra {
 		if strings.HasPrefix(path, "/api/") {
 			panic("api: extra handlers must not live under /api/")
