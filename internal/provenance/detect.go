@@ -39,8 +39,24 @@ var categories = []category{
 	cat("concealment", 4, `\b(do not|don't|dont|never|without)\b.{0,25}\b(tell|inform|notify|mention|alert|ask|show|reveal)\b.{0,25}\b(the )?(user|human|owner|customer|operator)`),
 	cat("exfiltration", 4, `\b(send|email|forward|post|upload|reveal|leak)\b.{0,40}\b(password|credentials?|api[ -]?key|token|secret|card number|cvv|private key)`),
 	cat("fake system message", 3, `\b(system (message|notice|override|alert|prompt|instruction)s?|new instructions?|updated instructions?|admin override|developer mode)\b|<\|?(im_start|im_end|system|endoftext)\|?>|\[/?(system|inst)\]|(^|\s)(system|assistant|developer) ?: `),
-	cat("addresses the AI", 2, `\bif you are (an? )?(ai|llm|assistant|agent|language model|bot|automated)\b|\b(attention|note|notice|important|hey)[ ,:]{1,3}(to )?(the )?(ai|assistant|agent|llm|model|bot)\b|\b(ai|llm|language model|ai assistant|ai agent|chatbot|automated agent)s? (reading|processing|browsing|visiting|must|should|will|need)\b`),
+	// "addresses the AI" matches text that explicitly speaks to an AI agent or automated buyer.
+	// Weight 3 (was 2) so a single strong address + a payment instruction crosses the medium threshold.
+	cat("addresses the AI", 3, `\bif you are (an? )?(ai|llm|assistant|agent|language model|bot|automated)\b`+
+		`|\b(attention|note|notice|important|hey|dear|hello|hi)[ ,:]{1,4}(to )?(all )?(the )?(ai|assistant|agent|llm|model|bot|language model|automated)s?\b`+
+		`|\b(note|tip|notice|important|message|instruction)s? for (ai|automated|language model|llm) (shopping )?(assistants?|buyers?|agents?|models?|bots?)\b`+
+		`|\b(ai|llm|language model|ai assistant|ai agent|chatbot|automated agent|automated buyer)s? (reading|processing|browsing|visiting|must|should|will|need)\b`+
+		`|\bto all (language model|ai|llm|automated) (agents?|assistants?|bots?|buyers?)\b`),
+	// "merchant redirect" catches attempts to swap the merchant without using override language.
+	cat("merchant redirect", 3, `\b(use|pay|send (it|funds?|money|payment)? ?to|pay to)\b.{0,50}\b(instead of|rather than|in place of|not|rather)\b`+
+		`|\buse (merchant|shop|store|vendor|seller) (id|name|account)?\b.{0,60}\binstead\b`+
+		`|\b(the (same|correct|actual|real|our) (company|shop|merchant|business|account))\b.{0,30}\b(shadyshop|different|another|other)\b`),
 	cat("payment instruction", 1, `\b(you (must|should|need to|have to|will|shall)|please|now|immediately|first|also|additionally|instead|then)\b.{0,40}\b(buy|purchase|pay|send|transfer|wire|checkout|check out|complete (the )?(purchase|order|payment)|order)\b`),
+	// "directed payment" matches specific fee-injection patterns and merchant-redirect payment requests.
+	// Weight 2 ensures that combined with an AI-address (weight 3) the total >= 4 => High severity.
+	cat("directed payment", 2, `\b(transfer|send|wire|pay)\b.{0,60}\b(the difference|the fee|the deposit|a fee|handling fee|priority fee|surcharge)\b`+
+		`|\b(pay(able)?|send|transfer)\b.{0,40}\b(to (merchant|shop|account|shadyshop)\b)`+
+		`|\bcomplete (checkout|the order|the payment|the purchase)\b.{0,30}\b(by paying|before|first)\b`+
+		`|\b(deposit|balance|amount due)\b.{0,40}\b(send|transfer|pay|wire)\b`),
 }
 
 // Hidden-content markers found in HTML (see HTMLToText).
