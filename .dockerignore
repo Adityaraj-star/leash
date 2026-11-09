@@ -1,0 +1,5 @@
+.git
+node_modules
+lab-results
+web/e2e/node_modules
+*.zip

@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: leash
+    runtime: docker
+    plan: starter            # persistent disks need a paid instance
+    healthCheckPath: /healthz
+    disk:
+      name: leash-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: LEASH_ADMIN_TOKEN
+        sync: false          # 32+ chars; set in the Render dashboard
+      - key: LEASH_AGENT_TOKEN
+        sync: false          # 32+ chars, different from the admin token
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_BASE_URL
+        value: https://api-m.sandbox.paypal.com
+      - key: LEASH_PUBLIC_URL
+        sync: false          # https://<your-service>.onrender.com
+      - key: LEASH_PAYMENT_SOURCE
+        sync: false          # only if the vault call works; leave unset to use buyer approval
