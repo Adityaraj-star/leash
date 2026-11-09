@@ -359,7 +359,7 @@ func TestRetriesIdempotentCallsWithSameRequestID(t *testing.T) {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
-		io.WriteString(w, `{"id":"CAP9","status":"COMPLETED"}`)
+		io.WriteString(w, `{"id":"CAP9","status":"COMPLETED","amount":{"currency_code":"USD","value":"1.00"}}`)
 	})
 	c, _, sleeps := f.client(t)
 	cp, err := c.Capture(context.Background(), "AUTH1", CaptureParams{RequestID: "same-key", FinalCapture: true})

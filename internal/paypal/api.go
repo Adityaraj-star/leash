@@ -230,6 +230,15 @@ func (c *Client) Capture(ctx context.Context, authID string, p CaptureParams) (*
 	if err := c.do(ctx, http.MethodPost, "/v2/payments/authorizations/"+url.PathEscape(authID)+"/capture", body, &cp, p.RequestID); err != nil {
 		return nil, err
 	}
+	// PayPal answers a capture with a minimal body by default: an id and a status,
+	// no amount. Read the capture back so the caller can check what was taken.
+	if cp.ID != "" && cp.Amount.Value == "" {
+		full, err := c.GetCapture(ctx, cp.ID)
+		if err != nil {
+			return nil, fmt.Errorf("paypal: capture %s accepted, reading it back failed: %w", cp.ID, err)
+		}
+		cp = *full
+	}
 	return &cp, nil
 }
 
