@@ -19,3 +19,4 @@ data/
 
 # dashboard end-to-end test dependencies
 web/e2e/node_modules/
+lab-results/
