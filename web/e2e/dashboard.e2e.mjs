@@ -467,7 +467,7 @@ check(
   "the dashboard shows it under 'Needs you'",
   await until(
     "approve button",
-    () => /Approve \\$32\.00/.test(text("needs-list")),
+    () => /Approve \$32\.00/.test(text("needs-list")),
   ),
   text("needs-list").slice(0, 100),
 );
