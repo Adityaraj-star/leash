@@ -12,7 +12,7 @@
 ![PayPal](https://img.shields.io/badge/PayPal-sandbox%20only-0070BA?logo=paypal&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**[Live demo](#live-demo-and-video)** ·
+**[Live demo](#live-demo-and-vide)** ·
 **[See it in 60 seconds](#-see-it-in-60-seconds)** ·
 **[How it works](#-how-a-purchase-works)** ·
 **[Run it yourself](#-getting-started)** ·
@@ -157,8 +157,8 @@ Want the full dashboard with a pre-filled scenario? Run `go run ./cmd/leash serv
 ### Live demo and video
 
 <!-- EDIT: replace these two lines before you submit -->
-- **Hosted demo (simulated PayPal, no real money):** `https://YOUR-SERVICE.onrender.com`  (sign-in token in the Devpost submission)
-- **Demo video (under 3 minutes):** `https://youtu.be/YOUR-VIDEO-ID`
+- **Hosted demo (simulated PayPal, no real money):** `https://leash-c7rx.onrender.com`  (sign-in token in the Devpost submission)
+- **Demo video (under 3 minutes):** `https://youtu.be/MUlxcSi4Hso`
 
 ---
 
