@@ -1,5 +1,5 @@
 # One static binary; the dashboard is embedded in it.
-FROM golang:1.25 AS build
+FROM golang:1.27.4 AS build
 WORKDIR /src
 COPY . .
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/leash ./cmd/leash
