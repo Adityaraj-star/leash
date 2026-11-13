@@ -12,7 +12,7 @@
 ![PayPal](https://img.shields.io/badge/PayPal-sandbox%20only-0070BA?logo=paypal&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**[Live demo](#live-demo-and-vide)** ·
+**[Live demo](#live-demo-and-video)** ·
 **[See it in 60 seconds](#-see-it-in-60-seconds)** ·
 **[How it works](#-how-a-purchase-works)** ·
 **[Run it yourself](#-getting-started)** ·
